@@ -421,15 +421,17 @@ def plotFigure(filename):
     plt.show()
 
 
-# split_dataset('data/shanghai.pkl')
-# split_dataset('data/shanghai_extra.pkl')
-# add_abnormal('data/shanghai_test.pkl')
-# plotFigure('data/wave_abn.pkl')
-# fo = open("data/wave_label.pkl", 'rb')
-# labels = pickle.load(fo)
-# print(np.where(labels[:8,:]==1)[0])
-# plotFigure('data/MSL_train/processed/M_train.pkl')
-# plotFigure('data/SMAP_test/processed/D_test.pkl')
+# (MCAR) Missing completely at random
+def generate_mcar_mask(samples, ratio=0.1):
+    assert isinstance(samples, np.ndarray)
+
+    mask_matrix = np.zeros_like(samples, dtype=np.int8)
+    n_samples = samples.shape[0]
+    for i in range(n_samples):
+        mask_matrix[i] = np.random.choice([0, 1], size=samples.shape[1:], p=[ratio, 1 - ratio])
+
+    return mask_matrix
+
 
 if __name__ == '__main__':
     print("hello")
