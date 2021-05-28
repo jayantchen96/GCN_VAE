@@ -2,7 +2,6 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 from sklearn.preprocessing import MinMaxScaler
 from torch import nn
@@ -81,76 +80,6 @@ def split_dataset(filename, split_rate=0.5):
     pickle.dump(train_data, fs_train)
     pickle.dump(test_data, fs_test)
     return
-
-
-# 添加异常点的函数，从高斯函数中取样，添加至正常点上使其变成异常点
-def add_abnormal(filename, rate=0.05, mu=1, sigma=0.1):
-    fo = open(filename, 'rb')
-    data = pickle.load(fo)
-    # [1900, 10, 3]
-    abnormal_num = int(data.shape[0] * rate * data.shape[1])
-    np.random.seed(4)
-    # 随机某个时刻异常
-    index = np.arange(80, data.shape[0] * data.shape[1])
-    abnormal_index = np.random.choice(index, abnormal_num, replace=False)
-    # abnormal_index = random.sample(range(0, data.shape[0]), abnormal_num)
-    np.random.seed(4)
-    # 随机某个设备的所有传感器全部异常
-    # sensor_index = np.random.randint(data.shape[1], size=abnormal_num)
-    # matrix_index = np.zeros((data.shape[0], 2), int)
-    label = np.zeros((data.shape[0] * data.shape[1]), int)
-    label[abnormal_index] = 1
-    label = label.reshape((data.shape[0], data.shape[1]))
-    np.random.seed(4)
-    abnor_value = np.random.randint(10, 15)
-    data = data.reshape((-1, data.shape[2]))
-    data[abnormal_index] += abnor_value
-    data = data.reshape((label.shape[0], label.shape[1], data.shape[1]))
-    # data[abnormal_index] += data[abnormal_index] * 0.1
-    print(data.shape, label.shape)
-    np.save(filename.split('.')[0] + '_abn' + '.npy', data)
-    np.save(filename.split('.')[0] + '_label' + '.npy', label)
-    # fs_data = open(filename.split('.')[0] + '_abn' + '.pkl', 'wb')
-    # fs_label = open(filename.split('.')[0] + '_label' + '.pkl', 'wb')
-    # pickle.dump(data, fs_data, -1)
-    # pickle.dump(label, fs_label, -1)
-    return data, label
-
-
-def anomaly_index(data, timestop):
-    data = data.replace('[', '')
-    data = data.replace(']', '')
-    data = data.split(',')
-    data = list(map(int, data))
-    anomaly = np.array([])
-    for i in range(len(data) // 2):
-        a = data[2 * i]
-        b = data[2 * i + 1]
-        if a > timestop:
-            break
-        elif a == timestop:
-            anomaly = np.append(anomaly, timestop - 1)
-            break
-        if b > timestop:
-            anomaly = np.concatenate((anomaly, np.arange(a - 1, timestop)))
-        else:
-            anomaly = np.concatenate((anomaly, np.arange(a - 1, b)))
-    return anomaly.astype(int)
-
-
-def read_anomalies(filename, dataname=None, setname=None, timestop=0):
-    ts_df = pd.read_csv(filename, header=0)
-    data = ts_df.loc[(ts_df['chan_id'].str.contains(dataname)) & (ts_df['spacecraft'] == setname)]
-    labels = np.zeros((timestop, len(data)))
-    print(data)
-    for i in range(len(data)):
-        # index = int(data.iloc[i, 0].split('-')[1])
-        # print(index)
-        anomaly = data.iloc[i, 2]
-        anomaly = anomaly_index(anomaly, timestop)
-        labels[anomaly, i] = 1
-    print('-----Abnormal points have been read!-----')
-    return labels
 
 
 class SinDataset(Dataset):
