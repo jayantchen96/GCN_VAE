@@ -1,8 +1,9 @@
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional as F
 
 from utils import sparse_dropout
+
 
 class GraphConvolution(nn.Module):
 
@@ -14,6 +15,7 @@ class GraphConvolution(nn.Module):
                  bias=False,
                  activation=F.relu,
                  featureless=False):
+
         super(GraphConvolution, self).__init__()
 
         self.dropout = dropout
@@ -32,7 +34,7 @@ class GraphConvolution(nn.Module):
             if bias:
                 self.bias = nn.Parameter(torch.zeros(seq, output_dim))
 
-    def forward(self, inputs):
+    def forward(self, inputs):  # (Batch_size, seq_len, num_sensor, num_features) , (num_sensors, num_sensors)
         # print('inputs:', inputs)
         x, x_adj = inputs
 
@@ -59,3 +61,23 @@ class GraphConvolution(nn.Module):
             out += self.bias
 
         return self.activation(out), x_adj
+
+
+if __name__ == '__main__':
+    B = 1
+    seq_len = 1000
+    n = 20
+    m = 15
+
+    layer = GraphConvolution(input_dim=m,
+                             output_dim=m * 2,
+                             seq=seq_len,
+                             batch_size=B,
+                             dropout=0.5,
+                             activation=F.relu)
+
+    x = torch.randn(B, seq_len, n, m)  # (Batch_size, seq_len, num_sensor, num_features)
+    adj = torch.randn(n, n)
+    y, y_adj = layer((x, adj))
+    print(y.shape)
+    print(adj == y_adj)
