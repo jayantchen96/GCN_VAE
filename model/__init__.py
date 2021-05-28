@@ -38,8 +38,6 @@ class GraphConvolution(nn.Module):
         # convolve
         xw = torch.matmul(x, self.weight)
 
-        # print(xw.shape)
-        # print(x_adj.shape)
         out = torch.matmul(x_adj, xw)
         # print(out.shape)
 
@@ -69,26 +67,8 @@ class _GCN(nn.Module):
 
     def forward(self, inputs):
         x, x_adj = inputs
-        x_adj = x_adj[0]
+        # x_adj = x_adj[0]
         x = self.gcns((x, x_adj))
 
         return x
 
-
-if __name__ == '__main__':
-    B = 1
-    seq_len = 1000
-    n = 20
-    m = 15
-
-    layer = GraphConvolution(input_dim=m,
-                             output_dim=m * 2,
-                             seq=seq_len,
-                             batch_size=B,
-                             dropout=0.5,
-                             activation=F.relu)
-
-    x = torch.randn(B, seq_len, n, m)  # (Batch_size, seq_len, num_sensor, num_features)
-    adj = torch.randn(n, n)
-    y, y_adj = layer((x, adj))
-    print(y.shape)

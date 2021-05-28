@@ -18,17 +18,6 @@ from utils import weights_init
 from collections import OrderedDict
 
 
-# y是矩阵的话，这个类应该是错的
-# class NMSELoss(nn.Module):
-#     def __init__(self, eps=1e-8):
-#         super().__init__()
-#         self.mse = nn.MSELoss()
-#         self.eps = eps
-#
-#     def forward(self, yhat, y):
-#         loss = torch.sqrt((self.mse(yhat, y) + self.eps)/(y+self.eps))
-#         return loss
-
 class RMSELoss(nn.Module):
     def __init__(self, eps=1e-8):
         super().__init__()
@@ -56,35 +45,31 @@ class Generator(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_shape, gru_dim, num_features_exter, gcn_dim=8):
+    def __init__(self, input_shape, gcn_dim, gru_dim):
         super(Encoder, self).__init__()
         # 两层GCN
-        self.gcn = _GCN(input_dim=input_shape[-1],
-                        output_dim=gcn_dim,
-                        seq=input_shape[-3],
-                        batch_size=input_shape[0])
+        assert len(input_shape) == 4
+        batch_size, seq_len, num_sensors, num_features = input_shape
 
-        gru_x_dim = gcn_dim
-        # 没有GCN
-        # gru_x_dim = input_shape[-1]
-        self.locations = input_shape[-2]
-        self.num_features_exter = num_features_exter
-        # 主要GRU
+        self.gcn = _GCN(input_dim=num_features,
+                        output_dim=gcn_dim,
+                        seq=seq_len,
+                        batch_size=batch_size)
+
         self.grus = nn.ModuleList(
-            [nn.GRU(input_size=gru_x_dim, hidden_size=gru_dim, num_layers=2, bias=False, batch_first=True)
-             for i in range(self.locations)]
+            [nn.Sequential(nn.GRU(input_size=gcn_dim,
+                                  hidden_size=gru_dim,
+                                  num_layers=2,
+                                  bias=False,
+                                  batch_first=True),
+                           nn.InstanceNorm1d(num_features=gru_dim))
+
+             for _ in range(num_sensors)]
         )
-        self.IN1 = nn.InstanceNorm1d(num_features=gru_dim)
-        # 外界因素GRU 3
-        # self.grus_exter = nn.ModuleList(
-        #     [nn.GRU(input_size=num_features_exter, hidden_size=gru_dim, num_layers=3, bias=False, batch_first=True)
-        #      for i in range(self.locations)]
-        # )
-        # self.IN2 = nn.InstanceNorm1d(num_features=gru_dim)
 
     def forward(self, x):
         x, x_adj = x
-        # [batch, seq, locations, features] [1, 1, features, features]\
+        # (batch, seq, locations, features), (1, 1, features, features)
         # GCN处理
         x, _ = self.gcn((x, x_adj))
         # print(x.shape)
@@ -93,40 +78,13 @@ class Encoder(nn.Module):
         x_list = []
         # states_list = []
         for i in range(self.locations):
-            # [batch, seq, hidden], [num_layers, batch, hidden] main
+            # x[:, :, i, :] shape ==> (batch, seq_len, num_fea)
+            # x_temp shape ==> (batch, seq_len, gru_dim)
             x_temp, states_temp = self.grus[i](x[:, :, i, :])
-            x_list.append(self.IN1(x_temp).view(1, x_temp.shape[0], x_temp.shape[1], x_temp.shape[2]))
+            x_list.append(torch.unsqueeze(x_temp, dim=0))
             # states_list.append(states_temp.view(1, states_temp.shape[0], states_temp.shape[1], states_temp.shape[2]))
         x = torch.cat(x_list, 0)
-        # states_x = torch.cat(states_list, 0)
 
-        # 外界因素GRU
-        # [batch, seq, hidden], [num_layers,batch, hidden] external
-        # x_list = []
-        # states_list = []
-        # for i in range(self.locations):
-        #     # [batch, seq, hidden], [num_layers,batch,hidden] main
-        #     x_temp, states_temp = self.grus_exter[i](x_exter[:, :, i, :])
-        #     x_list.append(self.IN1(x_temp).view(1, x_temp.shape[0], x_temp.shape[1], x_temp.shape[2]))
-        #     # states_list.append(states_temp.view(1, states_temp.shape[0], states_temp.shape[1], states_temp.shape[2]))
-        # x_exter = torch.cat(x_list, 0)
-        # states_exter = torch.cat(states_list, 0)
-
-        # 不使用外界因素的x
-        # x = x[:, :, :, :]
-        # 张量拼接 取最后一个输出，拼接特征  # 取最后一个状态，也在特征这个维度上拼接
-        # x = torch.cat((x[:, :, -1, :], x_exter[:, :, -1, :]), dim=-1)
-        # states = torch.cat((states_x[:, -1, :, :], states_exter[:, -1, :, :]), dim=-1)
-        # 张量相加
-        # x = x[:, :, -1, :] + x_exter[:, :, -1, :]
-        # states = states_x[:, -1, :, :] + states_exter[:, -1, :, :]
-        # 不使用外界因素的states
-        # states = states_x[:, -1, :, :]
-
-        # x = torch.unsqueeze(x, dim=-2)
-        # states = torch.unsqueeze(states, dim=-2)
-        # 保持[n, batch, 1, hidden]
-        # del x_exter, x_adj
         return x
 
 
