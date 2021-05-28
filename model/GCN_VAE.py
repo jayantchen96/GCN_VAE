@@ -68,15 +68,16 @@ class Encoder(nn.Module):
 
 
 if __name__ == '__main__':
-    B = 1
+    batch_size = 1
     seq_len = 1000
-    n = 20
-    m = 10
+    num_sensors = 20
+    num_feas = 10
 
-    layer = Encoder((B, seq_len, n, m), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=128)
+    layer = Encoder((batch_size, seq_len, num_sensors, num_feas), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=128)
 
-    x = torch.randn(B, seq_len, n, m)  # (Batch_size, seq_len, num_sensor, num_features)
-    adj = torch.randn(n, n)
+    x = torch.randn(batch_size, seq_len, num_sensors, num_feas)  # (Batch_size, seq_len, num_sensor, num_features)
+    adj = torch.randn(num_sensors, num_sensors)
     y = layer((x, adj))
+
     print('Encoder输入形状:', tuple(x.shape))
     print('Encoder输出形状:', tuple(y.shape))
