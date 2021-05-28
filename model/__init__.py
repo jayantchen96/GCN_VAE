@@ -1,8 +1,11 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 
+# 图卷积层
 class GraphConvolution(nn.Module):
 
     def __init__(self, input_dim, output_dim, seq=1,
@@ -46,6 +49,32 @@ class GraphConvolution(nn.Module):
         return self.activation(out), x_adj
 
 
+# 2层图卷积
+class _GCN(nn.Module):
+
+    def __init__(self, input_dim, output_dim, hidden_dim, seq, batch_size, dropout=0.5):
+        super(_GCN, self).__init__()
+
+        self.gcns = nn.Sequential(OrderedDict([
+            ('gcn1', GraphConvolution(input_dim, hidden_dim, seq,
+                                      batch_size=batch_size,
+                                      activation=F.relu,
+                                      dropout=dropout)),
+
+            ('gcn2', GraphConvolution(hidden_dim, output_dim, seq,
+                                      batch_size=batch_size,
+                                      activation=F.relu,
+                                      dropout=dropout))
+        ]))
+
+    def forward(self, inputs):
+        x, x_adj = inputs
+        x_adj = x_adj[0]
+        x = self.gcns((x, x_adj))
+
+        return x
+
+
 if __name__ == '__main__':
     B = 1
     seq_len = 1000
@@ -63,4 +92,3 @@ if __name__ == '__main__':
     adj = torch.randn(n, n)
     y, y_adj = layer((x, adj))
     print(y.shape)
-    print(adj == y_adj)
