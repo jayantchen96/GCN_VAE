@@ -15,6 +15,7 @@ from config import args
 from layer import GraphConvolution
 from utils import PredictorDataset
 from utils import weights_init
+from collections import OrderedDict
 
 
 # y是矩阵的话，这个类应该是错的
@@ -62,6 +63,7 @@ class Encoder(nn.Module):
                         output_dim=gcn_dim,
                         seq=input_shape[-3],
                         batch_size=input_shape[0])
+
         gru_x_dim = gcn_dim
         # 没有GCN
         # gru_x_dim = input_shape[-1]
@@ -222,34 +224,25 @@ class _GCN(nn.Module):
     def __init__(self, input_dim, output_dim, seq, batch_size, num_features_nonzero=None):
         super(_GCN, self).__init__()
 
-        self.input_dim = input_dim  # 1433
-        self.output_dim = output_dim
-        # args.hidden默认是16
-        self.layers = nn.Sequential(GraphConvolution(self.input_dim, args.hidden, seq,
-                                                     batch_size=batch_size,
-                                                     num_features_nonzero=num_features_nonzero,
-                                                     activation=F.relu,
-                                                     dropout=args.dropout,
-                                                     is_sparse_inputs=False),
-                                    # GraphConvolution(args.hidden, args.hidden, seq,
-                                    #                  batch_size=batch_size,
-                                    #                  num_features_nonzero=num_features_nonzero,
-                                    #                  activation=F.relu,
-                                    #                  dropout=args.dropout,
-                                    #                  is_sparse_inputs=False),
-                                    GraphConvolution(args.hidden, output_dim, seq,
-                                                     batch_size=batch_size,
-                                                     num_features_nonzero=num_features_nonzero,
-                                                     activation=F.relu,
-                                                     dropout=args.dropout,
-                                                     is_sparse_inputs=False),
-
-                                    )
+        self.gcns = nn.Sequential(OrderedDict([
+            ('gcn1', GraphConvolution(input_dim, args.hidden, seq,
+                                      batch_size=batch_size,
+                                      num_features_nonzero=num_features_nonzero,
+                                      activation=F.relu,
+                                      dropout=args.dropout,
+                                      is_sparse_inputs=False)),
+            ('gcn2', GraphConvolution(args.hidden, output_dim, seq,
+                                      batch_size=batch_size,
+                                      num_features_nonzero=num_features_nonzero,
+                                      activation=F.relu,
+                                      dropout=args.dropout,
+                                      is_sparse_inputs=False))
+        ]))
 
     def forward(self, inputs):
         x, x_adj = inputs
         x_adj = x_adj[0]
-        x = self.layers((x, x_adj))
+        x = self.gcns((x, x_adj))
 
         return x
 

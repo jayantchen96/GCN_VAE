@@ -2,28 +2,20 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from utils import sparse_dropout
-
 
 class GraphConvolution(nn.Module):
 
     def __init__(self, input_dim, output_dim, seq=1,
                  batch_size=None,
-                 num_features_nonzero=None,
                  dropout=0.,
-                 is_sparse_inputs=False,
                  bias=False,
-                 activation=F.relu,
-                 featureless=False):
+                 activation=F.relu):
 
         super(GraphConvolution, self).__init__()
 
         self.dropout = dropout
         self.bias = bias
         self.activation = activation
-        self.is_sparse_inputs = is_sparse_inputs
-        self.featureless = featureless
-        self.num_features_nonzero = num_features_nonzero
         self.weight = nn.Parameter(torch.randn(seq, input_dim, output_dim))
         self.bias = None
         if batch_size:
@@ -38,10 +30,7 @@ class GraphConvolution(nn.Module):
         # print('inputs:', inputs)
         x, x_adj = inputs
 
-        if self.training and self.is_sparse_inputs:
-            x = sparse_dropout(x, self.dropout, self.num_features_nonzero)
-        elif self.training:
-            x = F.dropout(x, self.dropout)
+        x = F.dropout(x, self.dropout)
 
         # convolve
         if not self.featureless:  # if it has features x
