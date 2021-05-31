@@ -25,6 +25,7 @@ class MyDataset(data.Dataset):
 
         # 对 monitor data 归一化
         scaler = MinMaxScaler(feature_range=(0, 1))
+        self.minmax_scaler = scaler
 
         ori_shape = monitor_data.shape
 
