@@ -10,6 +10,8 @@ class MyDataset(data.Dataset):
     def __init__(self, dataset, time_windows, step, is_train=True):
         seed_everything()
 
+        assert dataset in ['prsa', 'ghg']
+
         self.is_train = is_train
 
         # 读取数据集源文件
