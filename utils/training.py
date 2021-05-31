@@ -142,7 +142,7 @@ class Trainer(object):
         mae30 = np.nanmean(mae30_list)
         nmse30 = np.nanmean(nmse30_list)
 
-        print("=" * 10 + " Training Metrics " + "=" * 10)
+        print("=" * 10 + " Training Results " + "=" * 10)
         print(f'RMSE_5: {rmse5:.4f}, MAE_5: {mae5:.4f}, NMSE_5: {nmse5:.4f}')
         print(f'RMSE_10: {rmse10:.4f}, MAE_10: {mae10:.4f}, NMSE_10: {nmse10:.4f}')
         print(f'RMSE_30: {rmse30:.4f}, MAE_30: {mae30:.4f}, NMSE_30: {nmse30:.4f}')
