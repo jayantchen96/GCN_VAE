@@ -1,3 +1,5 @@
+import os
+from scipy.linalg import orth
 import numpy as np
 
 class PPCA(object):

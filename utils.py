@@ -136,7 +136,6 @@ class SinDataset(Dataset):
             self.predict_seq.append(predict)
 
     def __getitem__(self, index):
-        # TODO
         # 1. Read one data from file (e.g. using numpy.fromfile, PIL.Image.open).
         # 2. Preprocess the data (e.g. torchvision.Transform).
         # 3. Return a data pair (e.g. image and label).
