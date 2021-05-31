@@ -35,8 +35,8 @@ _C.MODEL = CN()
 _C.MODEL.WINDOW = 10
 # num_devices
 _C.MODEL.NUM_DEVICES = 7
-# num_devices
-_C.MODEL.NUM_FEATURES = 16
+# num_sensors
+_C.MODEL.NUM_SENSORS = 16
 # GCN hidden dim
 _C.MODEL.GHD = 32
 # GCN output dim
