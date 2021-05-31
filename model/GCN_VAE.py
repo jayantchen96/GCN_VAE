@@ -167,7 +167,7 @@ class Decoder(nn.Module):
 
 if __name__ == '__main__':
     batch_size = 1
-    seq_len = 327
+    seq_len = 10
     num_sensors = 7
     num_feas = 16
 
@@ -180,8 +180,8 @@ if __name__ == '__main__':
     print('VAE输入形状:', tuple(x.shape))
     # print('Encoder输出形状:', tuple(y.shape))
 
-    model = GCN_VAE((batch_size, seq_len, num_sensors, num_feas), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=128,
-                    z_dim=256)
+    model = GCN_VAE((batch_size, seq_len, num_sensors, num_feas), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=32,
+                    z_dim=32)
     x_hat, mu, log_var = model((x, adj))
     print('VAE输出形状:', tuple(x_hat.shape))
     print('VAE输出mu:', tuple(mu.shape))
