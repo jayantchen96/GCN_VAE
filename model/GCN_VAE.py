@@ -8,7 +8,7 @@ class GCN_VAE(nn.Module):
     def __init__(self, input_shape, gcn_hidden_dim, gcn_out_dim, gru_dim, z_dim=32):
         super(GCN_VAE, self).__init__()
 
-        batch_size, seq_len, num_sensors, num_feas = input_shape
+        seq_len, num_devices, num_sensors = input_shape
 
         self.encoder = Encoder(input_shape=input_shape,
                                gcn_hidden_dim=gcn_hidden_dim,
@@ -16,7 +16,7 @@ class GCN_VAE(nn.Module):
                                gru_dim=gru_dim,
                                z_dim=z_dim)
 
-        self.decoder = Decoder(input_shape=(batch_size, seq_len, num_sensors, z_dim), output_dim=num_feas)
+        self.decoder = Decoder(input_shape=(seq_len, num_devices, z_dim), output_dim=num_sensors)
 
     def forward(self, x):
         z, mu, log_var = self.encoder(x)
@@ -42,12 +42,12 @@ class Encoder(nn.Module):
                  ext_gru_dim=None):
         super(Encoder, self).__init__()
         # 两层GCN
-        assert len(input_shape) == 4
-        batch_size, seq_len, num_sensors, num_features = input_shape
+        assert len(input_shape) == 3
+        seq_len, num_devices, num_sensors = input_shape
 
-        self.num_sensors = num_sensors
+        self.num_devices = num_devices
 
-        self.gcn = _GCN(input_dim=num_features,
+        self.gcn = _GCN(input_dim=num_sensors,
                         output_dim=gcn_out_dim,
                         hidden_dim=gcn_hidden_dim,
                         seq=seq_len,
@@ -56,9 +56,9 @@ class Encoder(nn.Module):
         self.grus = [nn.GRU(input_size=gcn_out_dim,
                             hidden_size=gru_dim,
                             num_layers=1,
-                            batch_first=True) for _ in range(num_sensors)]
+                            batch_first=True) for _ in range(num_devices)]
 
-        self.instance_norms = [nn.InstanceNorm1d(gru_dim) for _ in range(num_sensors)]
+        self.instance_norms = [nn.InstanceNorm1d(gru_dim) for _ in range(num_devices)]
 
         self.has_ext = has_ext
 
@@ -69,8 +69,8 @@ class Encoder(nn.Module):
 
         # 均值 方差
         self.z_dim = z_dim
-        self.mu_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_sensors)]
-        self.var_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_sensors)]
+        self.mu_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
+        self.var_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
 
     def forward(self, x, ext_x=None):
         x, x_adj = x  # (batch, seq, locations, features), (1, 1, features, features)
@@ -86,7 +86,7 @@ class Encoder(nn.Module):
         x, _ = self.gcn((x, x_adj))
 
         x_list = []
-        for i in range(self.num_sensors):
+        for i in range(self.num_devices):
             x_temp, states_temp = self.grus[i](x[:, :, i, :])  # x_temp shape ==> (batch, seq_len, gru_dim)
             x_temp = self.instance_norms[i](x_temp)
 
@@ -103,7 +103,7 @@ class Encoder(nn.Module):
         all_z = []
         all_mu = []
         all_log_var = []
-        for i in range(self.num_sensors):
+        for i in range(self.num_devices):
             z_0 = torch.zeros((h.shape[0], self.z_dim), device=h.device)
             z_list = [z_0]
             mu_i_list = []
@@ -139,22 +139,22 @@ class Decoder(nn.Module):
     def __init__(self, input_shape, output_dim):
         super(Decoder, self).__init__()
 
-        assert len(input_shape) == 4
+        assert len(input_shape) == 3
 
-        batch_size, seq_len, num_sensors, z_dim = input_shape
+        seq_len, num_devices, z_dim = input_shape
 
         self.grus = [nn.GRU(input_size=z_dim,
                             hidden_size=output_dim,
                             num_layers=1,
-                            batch_first=True) for _ in range(num_sensors)]
+                            batch_first=True) for _ in range(num_devices)]
 
-        self.instance_norms = [nn.InstanceNorm1d(output_dim) for _ in range(num_sensors)]
+        self.instance_norms = [nn.InstanceNorm1d(output_dim) for _ in range(num_devices)]
 
-        self.num_sensors = num_sensors
+        self.num_devices = num_devices
 
     def forward(self, x):
         x_list = []
-        for i in range(self.num_sensors):
+        for i in range(self.num_devices):
             x_temp, states_temp = self.grus[i](x[:, :, i, :])  # x_temp shape ==> (batch, seq_len, output_dim)
             x_temp = self.instance_norms[i](x_temp)
 
@@ -166,21 +166,19 @@ class Decoder(nn.Module):
 
 
 if __name__ == '__main__':
-    batch_size = 1
+    batch_size = 10
     seq_len = 10
-    num_sensors = 7
-    num_feas = 16
+    num_devices = 7
+    num_sensors = 16
 
-    # layer = Encoder((batch_size, seq_len, num_sensors, num_feas), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=128, z_dim=128)
-
-    x = torch.randn(batch_size, seq_len, num_sensors, num_feas)  # (Batch_size, seq_len, num_sensor, num_features)
-    adj = torch.randn(num_sensors, num_sensors)
+    x = torch.randn(batch_size, seq_len, num_devices, num_sensors)  # (Batch_size, seq_len, num_devices, num_sensors)
+    adj = torch.randn(num_devices, num_devices)
     # y = layer((x, adj))
 
     print('VAE输入形状:', tuple(x.shape))
     # print('Encoder输出形状:', tuple(y.shape))
 
-    model = GCN_VAE((batch_size, seq_len, num_sensors, num_feas), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=32,
+    model = GCN_VAE((seq_len, num_devices, num_sensors), gcn_hidden_dim=32, gcn_out_dim=64, gru_dim=32,
                     z_dim=32)
     x_hat, mu, log_var = model((x, adj))
     print('VAE输出形状:', tuple(x_hat.shape))
