@@ -6,7 +6,7 @@ import torch.utils.data as data
 from utils import seed_everything
 
 
-class GHGDataset(data.Dataset):
+class MyDataset(data.Dataset):
     def __init__(self, dataset, time_windows, step, is_train=True):
         seed_everything()
 
@@ -82,4 +82,4 @@ class GHGDataset(data.Dataset):
 
 
 if __name__ == '__main__':
-    dataset = GHGDataset(dataset='prsa', time_windows=10, step=1, is_train=True)
+    dataset = MyDataset(dataset='prsa', time_windows=10, step=1, is_train=True)
