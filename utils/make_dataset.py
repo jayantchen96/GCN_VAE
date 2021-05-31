@@ -34,12 +34,12 @@ class MyDataset(data.Dataset):
         # 划分训练集、测试集
         train_len = int(monitor_data.shape[0] * 2 / 3)
 
-        if self.is_train:
+        if self.is_train:  # 训练集
             monitor_data = monitor_data[:train_len]
             mask5_data = mask5_data[:train_len]
             mask10_data = mask10_data[:train_len]
             mask30_data = mask30_data[:train_len]
-        else:
+        else:  # 测试集
             monitor_data = monitor_data[train_len:]
             mask5_data = mask5_data[train_len:]
             mask10_data = mask10_data[train_len:]
