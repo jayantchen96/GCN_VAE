@@ -75,6 +75,14 @@ class Encoder(nn.Module):
     def forward(self, x, ext_x=None):
         x, x_adj = x  # (batch, seq, locations, features), (1, 1, features, features)
 
+        # 进入GCN前先对邻接矩阵做变换  A' = D_-0.5 * (I + adj) * D_-0.5
+        x_adj = torch.eye(x_adj.shape[0], dtype=x_adj.dtype, device=x_adj.device) + x_adj
+        D = torch.zeros_like(x_adj)
+        indexes = torch.arange(0, x_adj.shape[0])
+        D[indexes, indexes] = torch.sum(x_adj, dim=1)
+        D_inv_half = torch.sqrt(torch.inverse(D))
+        x_adj = torch.matmul(torch.matmul(D_inv_half, x_adj), D_inv_half)
+
         x, _ = self.gcn((x, x_adj))
 
         x_list = []

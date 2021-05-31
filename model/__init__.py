@@ -11,7 +11,7 @@ class GraphConvolution(nn.Module):
     def __init__(self, input_dim, output_dim, seq=1,
                  batch_size=None,
                  dropout=0.,
-                 bias=False,
+                 bias=True,
                  activation=F.relu):
 
         super(GraphConvolution, self).__init__()
@@ -23,28 +23,23 @@ class GraphConvolution(nn.Module):
         self.bias = None
         if batch_size:
             self.weight = nn.Parameter(torch.randn(batch_size, seq, input_dim, output_dim))
-            if bias:
-                self.bias = nn.Parameter(torch.zeros(batch_size, seq, output_dim))
-        else:
-            if bias:
-                self.bias = nn.Parameter(torch.zeros(seq, output_dim))
 
-    def forward(self, inputs):  # (Batch_size, seq_len, num_sensor, num_features) , (num_sensors, num_sensors)
+        self.bias = nn.Parameter(torch.zeros(output_dim))
+
+    def forward(self, inputs):  # (Batch_size, seq_len, num_sensor, num_features) , (1, 1, num_sensors, num_sensors)
         # print('inputs:', inputs)
         x, x_adj = inputs
 
         x = F.dropout(x, self.dropout)
 
-        # convolve
-        xw = torch.matmul(x, self.weight)
-
-        out = torch.matmul(x_adj, xw)
-        # print(out.shape)
+        # H' = act(adj * H * w)
+        x = torch.matmul(x_adj, torch.matmul(x, self.weight))
+        x = self.activation(x)
 
         if self.bias is not None:
-            out += self.bias
+            x += self.bias
 
-        return self.activation(out), x_adj
+        return x, x_adj
 
 
 # 2层图卷积
@@ -71,4 +66,3 @@ class _GCN(nn.Module):
         x = self.gcns((x, x_adj))
 
         return x
-
