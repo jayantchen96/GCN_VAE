@@ -29,6 +29,23 @@ _C.TRAIN.VALID_PORTION = 0.1
 # seed for reproduce
 _C.TRAIN.SEED = 42
 
+# model settings
+_C.MODEL = CN()
+# time window
+_C.MODEL.WINDOW = 10
+# num_devices
+_C.MODEL.NUM_DEVICES = 7
+# num_devices
+_C.MODEL.NUM_FEATURES = 16
+# GCN hidden dim
+_C.MODEL.GHD = 32
+# GCN output dim
+_C.MODEL.GOD = 64
+# GRU output dim
+_C.MODEL.GROD = 32
+# latent variable Z dim
+_C.MODEL.Z_DIM = 32
+
 
 def get_cfg_defaults():
 
