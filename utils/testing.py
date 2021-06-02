@@ -56,16 +56,13 @@ class Tester(object):
 
             ori_shape = x_hat.shape
             x_hat = x_hat.reshape(-1, x_hat.shape[-1])
-            x_hat = scaler.inverse_transform(x_hat).reshape(ori_shape)
+            x_hat = scaler.inverse_transform(x_hat.detach()).reshape(ori_shape)
             x = x.reshape(-1, x.shape[-1])
-            x = scaler.inverse_transform(x).reshape(ori_shape)
+            x = scaler.inverse_transform(x.detach()).reshape(ori_shape)
 
-            rmse5, mae5, nmse5 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                 mask5.cpu().data.numpy())
-            rmse10, mae10, nmse10 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                    mask10.cpu().data.numpy())
-            rmse30, mae30, nmse30 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                    mask30.cpu().data.numpy())
+            rmse5, mae5, nmse5 = compute_metrics(x_hat, x, mask5.cpu().data.numpy())
+            rmse10, mae10, nmse10 = compute_metrics(x_hat, x, mask10.cpu().data.numpy())
+            rmse30, mae30, nmse30 = compute_metrics(x_hat, x, mask30.cpu().data.numpy())
 
             rmse5_list.append(rmse5)
             mae5_list.append(mae5)

@@ -16,25 +16,15 @@ class GCN_VAE(nn.Module):
                                gru_dim=gru_dim,
                                z_dim=z_dim)
 
-        self.decoder = Decoder(input_shape=(seq_len, num_devices, z_dim), output_dim=num_sensors)
+        self.decoder = Decoder(input_shape=(seq_len, num_devices, z_dim), gru_dim=gru_dim, output_dim=num_sensors)
+        self.act = nn.Sigmoid()
 
     def forward(self, x):
         z, mu, log_var = self.encoder(x)
         x_hat = self.decoder(z)
+        x_hat = self.act(x_hat)
 
         return x_hat, mu, log_var
-
-    def loss_function(self, x_hat, x, mu, log_var):
-        batch_size = x.shape[0]
-        reconstruction_loss = ((x_hat - x) ** 2).sum()
-
-        mu = mu.reshape(batch_size, -1)
-        log_var = log_var.reshape(batch_size, -1)
-
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
-        loss = reconstruction_loss / batch_size + kld_loss
-
-        return loss
 
 
 class Encoder(nn.Module):
@@ -50,12 +40,11 @@ class Encoder(nn.Module):
         self.gcn = _GCN(input_dim=num_sensors,
                         output_dim=gcn_out_dim,
                         hidden_dim=gcn_hidden_dim,
-                        seq=seq_len,
-                        batch_size=batch_size)
+                        seq=seq_len)
 
-        self.grus = [nn.GRU(input_size=gcn_out_dim,
+        self.grus = [nn.GRU(input_size=num_sensors,
                             hidden_size=gru_dim,
-                            num_layers=1,
+                            num_layers=2,
                             batch_first=True) for _ in range(num_devices)]
 
         self.instance_norms = [nn.InstanceNorm1d(gru_dim) for _ in range(num_devices)]
@@ -64,24 +53,32 @@ class Encoder(nn.Module):
 
         if has_ext:
             self.ext_gru = nn.GRU(input_size=ext_in_dim, hidden_size=ext_gru_dim, num_layers=2, batch_first=True)
-            self.alpha = nn.Parameter(torch.randn(1), requires_grad=True)
-            self.beta = nn.Parameter(torch.randn(1), requires_grad=True)
+            # self.alpha = nn.Parameter(torch.randn(1), requires_grad=True)
+            # self.beta = nn.Parameter(torch.randn(1), requires_grad=True)
 
         # 均值 方差
         self.z_dim = z_dim
-        self.mu_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
-        self.var_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
+        # self.mu_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
+        self.mu_layers = [nn.Linear(gru_dim, z_dim) for _ in range(num_devices)]
+        # self.var_layers = [nn.Linear(gru_dim + z_dim, z_dim) for _ in range(num_devices)]
+        self.var_layers = [nn.Linear(gru_dim, z_dim) for _ in range(num_devices)]
 
     def forward(self, x, ext_x=None):
-        x, x_adj = x  # (batch, seq, locations, features), (1, 1, features, features)
+        x, x_adj = x  # (batch, seq, locations, features), (batch, features, features)
+        x_adj = x_adj[0]
 
         # 进入GCN前先对邻接矩阵做变换  A' = D_-0.5 * (I + adj) * D_-0.5
-        x_adj = torch.eye(x_adj.shape[0], dtype=x_adj.dtype, device=x_adj.device) + x_adj
-        D = torch.zeros_like(x_adj)
-        indexes = torch.arange(0, x_adj.shape[0])
+        x_adj = torch.eye(x.shape[2], dtype=x_adj.dtype, device=x_adj.device) + x_adj
+        D = torch.zeros_like(x_adj, device=x_adj.device)
+        # print(D.shape)
+
+        indexes = torch.arange(0, x.shape[2])
+        # print(len(indexes))
+        # print(x_adj.shape)
+        # print(x.shape)  # (8, 10, 7, 16)
         D[indexes, indexes] = torch.sum(x_adj, dim=1)
         D_inv_half = torch.sqrt(torch.inverse(D))
-        x_adj = torch.matmul(torch.matmul(D_inv_half, x_adj), D_inv_half)
+        x_adj = torch.matmul(torch.matmul(D_inv_half, x_adj), D_inv_half)  # (8, 7, 7)
 
         x, _ = self.gcn((x, x_adj))
 
@@ -95,24 +92,26 @@ class Encoder(nn.Module):
         x = torch.cat(x_list, 0)
 
         if self.has_ext and ext_x is not None:
-            ext_x = self.ext_gru(ext_x)
-            x = self.alpha * x + self.beta * ext_x
+            pass
+            # ext_x = self.ext_gru(ext_x)
+            # x = self.alpha * x + self.beta * ext_x
 
-        h = x.permute(1, 2, 0, 3)  # (batch_size, seq_len, num_sensors, gru_dim)
+        h = x.permute(1, 2, 0, 3)  # (batch_size, seq_len, num_devices, gru_dim)
 
         all_z = []
         all_mu = []
         all_log_var = []
         for i in range(self.num_devices):
-            z_0 = torch.zeros((h.shape[0], self.z_dim), device=h.device)
-            z_list = [z_0]
+            # z_0 = torch.zeros((h.shape[0], self.z_dim), device=h.device)
+            # z_list = [z_0]
+            z_list = [0]
             mu_i_list = []
             log_var_i_list = []
             hh = h[:, :, i]  # (batch_size, seq_len, gru_dim)
             for t in range(hh.shape[1]):
-                z_h_cat = torch.cat([z_list[-1], hh[:, t]], dim=1)
-                mu_t = self.mu_layers[i](z_h_cat)
-                log_var_t = self.var_layers[i](z_h_cat)
+                # z_h_cat = torch.cat([z_list[-1], hh[:, t]], dim=1)
+                mu_t = self.mu_layers[i](hh[:, t])
+                log_var_t = self.var_layers[i](hh[:, t])
                 std_t = torch.exp(0.5 * log_var_t)
                 eps = torch.randn_like(mu_t, device=mu_t.device)
                 z_t = mu_t + std_t * eps
@@ -128,7 +127,7 @@ class Encoder(nn.Module):
             all_mu.append(mu_i)
             all_log_var.append(log_var_i)
 
-        all_z = torch.stack(all_z, dim=2)  # (batch_size, seq_len, num_sensors, z_dim)
+        all_z = torch.stack(all_z, dim=2)  # (batch_size, seq_len, num_devices, z_dim)
         all_mu = torch.stack(all_mu, dim=2)
         all_log_var = torch.stack(all_log_var, dim=2)
 
@@ -136,7 +135,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, input_shape, output_dim):
+    def __init__(self, input_shape, gru_dim, output_dim):
         super(Decoder, self).__init__()
 
         assert len(input_shape) == 3
@@ -144,29 +143,38 @@ class Decoder(nn.Module):
         seq_len, num_devices, z_dim = input_shape
 
         self.grus = [nn.GRU(input_size=z_dim,
-                            hidden_size=output_dim,
-                            num_layers=1,
+                            hidden_size=gru_dim,
+                            num_layers=2,
                             batch_first=True) for _ in range(num_devices)]
 
-        self.instance_norms = [nn.InstanceNorm1d(output_dim) for _ in range(num_devices)]
+        self.instance_norms = [nn.InstanceNorm1d(gru_dim) for _ in range(num_devices)]
+
+        self.fc_layer = [nn.Linear(gru_dim, output_dim) for _ in range(num_devices)]
 
         self.num_devices = num_devices
+        self.seq_len = seq_len
 
     def forward(self, x):
         x_list = []
         for i in range(self.num_devices):
-            x_temp, states_temp = self.grus[i](x[:, :, i, :])  # x_temp shape ==> (batch, seq_len, output_dim)
+            x_temp, states_temp = self.grus[i](x[:, :, i, :])  # x_temp shape ==> (batch, seq_len, gru_dim)
             x_temp = self.instance_norms[i](x_temp)
 
-            x_list.append(x_temp)
+            x_t_list = []
+            for t in range(self.seq_len):
+                x_temp_t = self.fc_layer[i](x_temp[:, t])
+                x_t_list.append(x_temp_t)
 
-        x = torch.stack(x_list, dim=2)  # (batch_size, seq_len, num_sensors, num_features)
+            x_temp_tt = torch.stack(x_t_list, dim=1)
+            x_list.append(x_temp_tt)
+
+        x = torch.stack(x_list, dim=2)  # (batch_size, seq_len, num_devices, num_sensors)
 
         return x
 
 
 if __name__ == '__main__':
-    batch_size = 10
+    batch_size = 8
     seq_len = 10
     num_devices = 7
     num_sensors = 16
@@ -185,11 +193,7 @@ if __name__ == '__main__':
     print('VAE输出mu:', tuple(mu.shape))
     print('VAE输出logvar:', tuple(log_var.shape))
 
-    loss = GCN_VAE.loss_function(GCN_VAE, x_hat, x, mu, log_var)
-    print(loss.item())
-
     # macs, params = profile(model, inputs=(x, adj))
     #
     # print(f'FLOPs: {macs * 2 / 1e9 : .3f}G')
     # print(f'Params: {params / 1e6 : .3f}M')
-

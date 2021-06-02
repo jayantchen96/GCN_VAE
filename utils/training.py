@@ -1,4 +1,4 @@
-from utils import seed_everything
+from utils import seed_everything, loss_function
 from utils.metrics import compute_metrics
 import torch
 from torch.utils.data import DataLoader
@@ -48,17 +48,21 @@ class Trainer(object):
             # model training
             self._model.train()
             train_loss = 0
+            recon_loss = 0
+            kld = 0
             for i, (x, adj_matrix, mask5, mask10, mask30) in enumerate(train_loader):
                 x = x.type(torch.FloatTensor).to(device)
                 adj_matrix = adj_matrix.type(torch.FloatTensor).to(device)
-                mask5 = mask5.type(torch.FloatTensor).to(device)
-                mask10 = mask10.type(torch.FloatTensor).to(device)
-                mask30 = mask30.type(torch.FloatTensor).to(device)
+                # mask5 = mask5.type(torch.FloatTensor).to(device)
+                # mask10 = mask10.type(torch.FloatTensor).to(device)
+                # mask30 = mask30.type(torch.FloatTensor).to(device)
 
                 x_hat, mu, log_var = self._model((x, adj_matrix))
 
-                loss = self._model.loss_function(self._model, x_hat, x, mu, log_var)
+                loss, rec_loss, kld_loss = loss_function(x_hat, x, mu, log_var)
                 train_loss = loss.item()
+                recon_loss = rec_loss.item()
+                kld = kld_loss.item()
 
                 # Backward and optimize
                 self._optimizer.zero_grad()
@@ -71,20 +75,22 @@ class Trainer(object):
             for i, (x, adj_matrix, mask5, mask10, mask30) in enumerate(valid_loader):
                 x = x.type(torch.FloatTensor).to(device)
                 adj_matrix = adj_matrix.type(torch.FloatTensor).to(device)
-                mask5 = mask5.type(torch.FloatTensor).to(device)
-                mask10 = mask10.type(torch.FloatTensor).to(device)
-                mask30 = mask30.type(torch.FloatTensor).to(device)
+                # mask5 = mask5.type(torch.FloatTensor).to(device)
+                # mask10 = mask10.type(torch.FloatTensor).to(device)
+                # mask30 = mask30.type(torch.FloatTensor).to(device)
 
                 x_hat, mu, log_var = self._model((x, adj_matrix))
 
-                loss = self._model.loss_function(self._model, x_hat, x, mu, log_var)
+                loss, _, _ = loss_function(x_hat, x, mu, log_var)
                 valid_loss = loss.item()
 
             if valid_loss < min_valid_loss:
                 min_valid_loss = valid_loss
                 torch.save(self._model.state_dict(), self._save_path)
 
-            print(f'Epoch [{epoch + 1}/{self._max_epoch}], Loss: {train_loss:.5f}, Valid_loss: {valid_loss:.5f}')
+            print(f'Epoch [{epoch + 1}/{self._max_epoch}], '
+                  f'Loss: {train_loss:.5f}, recon_loss: {recon_loss:.5f}, kld: {kld:.5f} '
+                  f'Valid_loss: {valid_loss:.5f}')
 
         print("==> training finished ...")
 
@@ -111,16 +117,13 @@ class Trainer(object):
 
             ori_shape = x_hat.shape
             x_hat = x_hat.reshape(-1, x_hat.shape[-1])
-            x_hat = scaler.inverse_transform(x_hat).reshape(ori_shape)
+            x_hat = scaler.inverse_transform(x_hat.detach()).reshape(ori_shape)
             x = x.reshape(-1, x.shape[-1])
-            x = scaler.inverse_transform(x).reshape(ori_shape)
+            x = scaler.inverse_transform(x.detach()).reshape(ori_shape)
 
-            rmse5, mae5, nmse5 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                 mask5.cpu().data.numpy())
-            rmse10, mae10, nmse10 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                    mask10.cpu().data.numpy())
-            rmse30, mae30, nmse30 = compute_metrics(x_hat.cpu().data.numpy(), x.cpu().data.numpy(),
-                                                    mask30.cpu().data.numpy())
+            rmse5, mae5, nmse5 = compute_metrics(x_hat, x, mask5.cpu().data.numpy())
+            rmse10, mae10, nmse10 = compute_metrics(x_hat, x, mask10.cpu().data.numpy())
+            rmse30, mae30, nmse30 = compute_metrics(x_hat, x, mask30.cpu().data.numpy())
 
             rmse5_list.append(rmse5)
             mae5_list.append(mae5)

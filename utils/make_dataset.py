@@ -15,7 +15,7 @@ class MyDataset(data.Dataset):
         self.is_train = is_train
 
         # 读取数据集源文件
-        data_path = '../data/processed'
+        data_path = './data/processed'
         monitor_data = np.load(os.path.join(data_path, f'{dataset}.npy'), 'r')
         adj_data = np.load(os.path.join(data_path, f'{dataset}_adj.npy'), 'r')
 
@@ -77,7 +77,8 @@ class MyDataset(data.Dataset):
         mask10 = self.mask10[index]
         mask30 = self.mask30[index]
 
-        return sample, self.adj_data, mask5, mask10, mask30
+        return torch.from_numpy(sample.copy()), torch.from_numpy(self.adj_data.copy()), \
+               torch.from_numpy(mask5.copy()), torch.from_numpy(mask10.copy()), torch.from_numpy(mask30.copy())
 
     def __len__(self):
 
